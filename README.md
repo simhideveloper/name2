@@ -7,6 +7,9 @@ on any empty square of any face, then you **must twist one face** a quarter
 turn. Marks ride along with their squares, so a twist can build (or wreck) a
 line on a neighbouring face.
 
+**Play it here: https://simhideveloper.github.io/name2/** (two people share one
+screen; open it on a laptop or phone and pass the device, or screen-share it).
+
 The whole thing is a static site: `index.html`, `style.css`, `app.js`
 (Three.js rendering + UI) and `game.js` (pure game logic, unit-tested).
 Three.js is vendored under `vendor/`, so there is no build step and no CDN.
@@ -17,6 +20,7 @@ Three.js is vendored under `vendor/`, so there is no build step and no CDN.
 - After placing, pick a face (Top, Bottom, Front, Back, Left, Right) and a direction (↺ / ↻ as seen looking at that face). Centre squares never move and carry the face's label.
 - Three in a row, column or diagonal on any single face wins. Lines are checked after each placement and after each twist.
 - If your twist hands your opponent a line and not you, they win. If it makes lines for both, the player who twisted wins.
+- **Lock view** snaps the camera face-on to the nearest face and centres it. While locked, swipe the middle row or the background to turn the whole cube (arrow keys work too), swipe an outer row or column to twist that layer, and use the bar under the cube to twist the face you are looking at.
 - Undo (or Ctrl/Cmd+Z) takes back the last action. Scores and names are remembered in the browser.
 
 ## Run locally
@@ -32,7 +36,13 @@ Tests (Node 18+):
 npm test
 ```
 
-## Share it with Cloudflare
+## Hosting
+
+**GitHub Pages (live now).** The `gh-pages` branch is served at
+https://simhideveloper.github.io/name2/. The workflow in `.github/workflows/pages.yml`
+mirrors the working branch onto `gh-pages` after every push, so the site updates itself.
+
+## Share it with Cloudflare instead
 
 **Option A — Cloudflare Pages (permanent URL, free).**
 In the Cloudflare dashboard go to *Workers & Pages → Create → Pages → Connect to Git*,
