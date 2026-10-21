@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Cube Tac-Toe</title>
+  <meta name="description" content="3-D tic-tac-toe on a Rubik's cube. Place a mark, then twist a face. Two players, one screen." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='6' fill='%2321b04b'/%3E%3Cpath d='M9 9l14 14M23 9L9 23' stroke='%23111' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="layout">
+    <section class="view" id="view" aria-label="3-D cube">
+      <div class="hud" id="hud">
+        <div class="hud-status" id="status"></div>
+        <div class="hud-hint" id="hint"></div>
+      </div>
+      <div class="view-tip">Drag to orbit · scroll or pinch to zoom · tap a square to play</div>
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    </section>
+
+    <aside class="panel">
+      <header class="panel-head">
+        <h1>Cube Tac-Toe</h1>
+        <p>Tic-tac-toe on a Rubik's cube. Each turn: <strong>place a mark</strong>, then <strong>twist one face</strong>.</p>
+      </header>
+
+      <section class="players" id="players">
+        <label class="player" data-player="X">
+          <span class="badge badge-x">X</span>
+          <input id="name-X" type="text" maxlength="16" value="Player 1" aria-label="Player X name" />
+          <span class="score" id="score-X">0</span>
+        </label>
+        <label class="player" data-player="O">
+          <span class="badge badge-o">O</span>
+          <input id="name-O" type="text" maxlength="16" value="Player 2" aria-label="Player O name" />
+          <span class="score" id="score-O">0</span>
+        </label>
+      </section>
+
+      <section class="steps" aria-label="Turn progress">
+        <div class="step" id="step-place"><span class="num">1</span> Place a mark</div>
+        <div class="step" id="step-rotate"><span class="num">2</span> Twist a face</div>
+      </section>
+
+      <section class="rotate" id="rotate">
+        <h2>Twist a face</h2>
+        <div class="rotate-grid" id="rotate-grid"></div>
+      </section>
+
+      <section class="netwrap">
+        <h2>All six faces</h2>
+        <div class="net" id="net"></div>
+      </section>
+
+      <section class="actions">
+        <button id="undo" type="button" class="btn">Undo</button>
+        <button id="new" type="button" class="btn btn-primary">New game</button>
+        <label class="check"><input id="scramble" type="checkbox" /> Start scrambled</label>
+      </section>
+
+      <details class="rules">
+        <summary>Rules</summary>
+        <ul>
+          <li>Two players share this screen and alternate turns. X goes first.</li>
+          <li>On your turn, first place your mark on any empty square on any face (click the cube or the unfolded map).</li>
+          <li>Then you <em>must</em> twist one face a quarter turn, in either direction. Marks ride along with their stickers.</li>
+          <li>Three of your marks in a row, column or diagonal on any single face wins. Lines are checked after each placement and after each twist.</li>
+          <li>If your twist completes a line for your opponent but not for you, your opponent wins. If it completes lines for both, you win.</li>
+          <li>All 54 squares full with no line is a draw.</li>
+        </ul>
+      </details>
+    </aside>
+  </main>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

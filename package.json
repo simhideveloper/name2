@@ -1,0 +1,12 @@
+{
+  "name": "cube-tac-toe",
+  "version": "1.0.0",
+  "description": "3-D tic-tac-toe played on a Rubik's cube: place a mark, then twist a face.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "start": "python3 -m http.server 8080 --bind 0.0.0.0"
+  },
+  "license": "MIT"
+}
