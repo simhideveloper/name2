@@ -1,9 +1,11 @@
 # Cube Tac-Toe
 
-Tic-tac-toe played on a 3-D Rubik's cube. Two players share one screen.
-Each turn you **place a mark** on any empty square of any face, then you
-**must twist one face** a quarter turn. Marks ride along with their stickers,
-so a twist can build (or wreck) a line on a neighbouring face.
+Tic-tac-toe played on the shape of a 3-D Rubik's cube. There are no colours
+to solve: all 54 squares start blank, and faces are named by position (Top,
+Front, Right…). Two players share one screen. Each turn you **place a mark**
+on any empty square of any face, then you **must twist one face** a quarter
+turn. Marks ride along with their squares, so a twist can build (or wreck) a
+line on a neighbouring face.
 
 The whole thing is a static site: `index.html`, `style.css`, `app.js`
 (Three.js rendering + UI) and `game.js` (pure game logic, unit-tested).
@@ -12,7 +14,7 @@ Three.js is vendored under `vendor/`, so there is no build step and no CDN.
 ## Rules
 
 - X goes first. Click a square on the cube, or on the unfolded map in the side panel.
-- After placing, pick a face (named by its centre colour) and a direction (↺ / ↻ as seen looking at that face).
+- After placing, pick a face (Top, Bottom, Front, Back, Left, Right) and a direction (↺ / ↻ as seen looking at that face). Centre squares never move and carry the face's label.
 - Three in a row, column or diagonal on any single face wins. Lines are checked after each placement and after each twist.
 - If your twist hands your opponent a line and not you, they win. If it makes lines for both, the player who twisted wins.
 - Undo (or Ctrl/Cmd+Z) takes back the last action. Scores and names are remembered in the browser.

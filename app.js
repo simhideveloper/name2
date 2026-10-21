@@ -45,25 +45,36 @@ const bodyGeo = new THREE.BoxGeometry(CUBIE, CUBIE, CUBIE);
 const bodyMat = new THREE.MeshStandardMaterial({ color: 0x14161c, roughness: 0.5, metalness: 0.15 });
 const stickerGeo = new THREE.PlaneGeometry(STICKER, STICKER);
 
-// Sticker textures: one per (face colour, mark) combination, drawn on a canvas.
+// Sticker textures: one per (mark, face label) combination, drawn on a canvas.
+// Stickers are all the same neutral tone; only X and O carry colour. Centre
+// stickers carry a small face label (T, F, R…) so faces stay identifiable.
+const STICKER_FILL = '#e6e9f0';
+const MARK_COLOR = { X: '#e5484d', O: '#2f6fed' };
 const textureCache = new Map();
-function stickerTexture(colorKey, mark) {
-  const k = `${colorKey}:${mark || ''}`;
+function stickerTexture(mark, label) {
+  const k = `${mark || ''}:${label || ''}`;
   if (textureCache.has(k)) return textureCache.get(k);
   const size = 256;
   const c = document.createElement('canvas');
   c.width = c.height = size;
   const ctx = c.getContext('2d');
   ctx.clearRect(0, 0, size, size);
-  ctx.fillStyle = FACE_BY_KEY[colorKey].hex;
+  ctx.fillStyle = STICKER_FILL;
   roundRect(ctx, 6, 6, size - 12, size - 12, 34);
   ctx.fill();
   ctx.lineWidth = 6;
-  ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+  ctx.strokeStyle = 'rgba(0,0,0,0.12)';
   ctx.stroke();
+  if (label) {
+    ctx.fillStyle = 'rgba(20,22,28,0.45)';
+    ctx.font = '700 48px system-ui, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(label, size - 30, size - 26);
+  }
   if (mark === 'X') {
-    ctx.strokeStyle = '#121212';
-    ctx.lineWidth = 34;
+    ctx.strokeStyle = MARK_COLOR.X;
+    ctx.lineWidth = 36;
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(74, 74); ctx.lineTo(size - 74, size - 74);
@@ -71,10 +82,8 @@ function stickerTexture(colorKey, mark) {
     ctx.stroke();
   } else if (mark === 'O') {
     ctx.beginPath();
-    ctx.arc(size / 2, size / 2, 60, 0, Math.PI * 2);
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#121212'; ctx.lineWidth = 42; ctx.stroke();
-    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 24; ctx.stroke();
+    ctx.arc(size / 2, size / 2, 62, 0, Math.PI * 2);
+    ctx.strokeStyle = MARK_COLOR.O; ctx.lineWidth = 34; ctx.stroke();
   }
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -100,11 +109,13 @@ game.cubies.forEach((cubie, i) => {
   const g = new THREE.Group();
   g.add(new THREE.Mesh(bodyGeo, bodyMat));
   for (const s of cubie.stickers) {
-    const mat = new THREE.MeshBasicMaterial({ map: stickerTexture(s.color, null), transparent: true });
+    const mat = new THREE.MeshBasicMaterial({ map: stickerTexture(null, faceLabel(cubie, s)), transparent: true });
     const mesh = new THREE.Mesh(stickerGeo, mat);
+    const face = FACES.find((f) => f.n.join() === s.n0.join());
     const n = new THREE.Vector3(...s.n0);
     mesh.position.copy(n).multiplyScalar(CUBIE / 2 + 0.003);
-    mesh.quaternion.setFromUnitVectors(Z, n);
+    // Plane +x/+y follow the face's right/up so labels read upright, matching the map.
+    mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(...face.right), new THREE.Vector3(...face.up), n));
     mesh.userData.stickerId = s.id;
     g.add(mesh);
     stickerMeshes.set(s.id, mesh);
@@ -112,6 +123,12 @@ game.cubies.forEach((cubie, i) => {
   cubieGroups.push(g);
   cubeGroup.add(g);
 });
+
+// Centre stickers (cubie with exactly one sticker) are labelled with their face.
+function faceLabel(cubie, s) {
+  if (cubie.stickers.length !== 1) return null;
+  return FACES.find((f) => f.n.join() === s.n0.join()).short;
+}
 
 const m4 = new THREE.Matrix4();
 function syncFromState() {
@@ -124,7 +141,7 @@ function syncFromState() {
     g.scale.set(1, 1, 1);
     for (const s of cubie.stickers) {
       const mesh = stickerMeshes.get(s.id);
-      const tex = stickerTexture(s.color, s.mark);
+      const tex = stickerTexture(s.mark, faceLabel(cubie, s));
       if (mesh.material.map !== tex) { mesh.material.map = tex; mesh.material.needsUpdate = true; }
     }
   });
@@ -261,7 +278,7 @@ function afterAction() {
 
 function newGame() {
   if (busy) return;
-  game.reset({ scramble: $('scramble').checked });
+  game.reset();
   syncFromState();
   showHover([]);
   updateUI();
@@ -282,7 +299,7 @@ const rotateGrid = $('rotate-grid');
 for (const f of FACES) {
   const row = document.createElement('div');
   row.className = 'face-row';
-  row.innerHTML = `<span class="swatch" style="background:${f.hex}"></span><span class="fname">${f.name}</span>`;
+  row.innerHTML = `<span class="fname">${f.name}</span>`;
   for (const [cw, glyph, label] of [[false, '↺', 'counter-clockwise'], [true, '↻', 'clockwise']]) {
     const b = document.createElement('button');
     b.type = 'button';
@@ -306,6 +323,13 @@ for (const f of FACES) {
 const net = $('net');
 const netCells = {}; // faceKey -> [[button]]
 for (const f of FACES) {
+  const wrap = document.createElement('div');
+  wrap.className = 'net-slot';
+  wrap.dataset.face = f.key;
+  const cap = document.createElement('div');
+  cap.className = 'net-label';
+  cap.textContent = f.name;
+  wrap.appendChild(cap);
   const faceEl = document.createElement('div');
   faceEl.className = 'net-face';
   faceEl.dataset.face = f.key;
@@ -323,7 +347,8 @@ for (const f of FACES) {
     }
     netCells[f.key].push(rowCells);
   }
-  net.appendChild(faceEl);
+  wrap.appendChild(faceEl);
+  net.appendChild(wrap);
 }
 
 function renderNet() {
@@ -335,8 +360,8 @@ function renderNet() {
         const s = grid[r][c];
         const cell = netCells[f.key][r][c];
         cell.dataset.id = s.id;
-        cell.style.background = FACE_BY_KEY[s.color].hex;
         cell.textContent = s.mark || '';
+        cell.classList.toggle('x', s.mark === 'X');
         cell.classList.toggle('o', s.mark === 'O');
         cell.classList.toggle('marked', !!s.mark);
         cell.classList.toggle('win', winIds.has(s.id));

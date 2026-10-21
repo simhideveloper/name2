@@ -1,16 +1,18 @@
 // Cube Tac-Toe — pure game logic (no DOM, no three.js).
+// Stickers have no colours: the game is tic-tac-toe on the cube's shape only.
+// Faces are named by position (centre cubies never move, so this is stable).
 // The cube is modelled as 26 cubies. Each cubie has an integer position
 // (x, y, z ∈ {-1, 0, 1}) and an integer 3×3 orientation matrix M. Every
 // sticker stores its *original* outward normal n0 (in the cubie's own frame),
 // so its current world normal is M · n0. Marks travel with stickers.
 
 export const FACES = [
-  { key: 'U', name: 'White',  hex: '#f2f2f2', n: [0, 1, 0],  right: [1, 0, 0],  up: [0, 0, -1] },
-  { key: 'D', name: 'Yellow', hex: '#ffd21f', n: [0, -1, 0], right: [1, 0, 0],  up: [0, 0, 1] },
-  { key: 'F', name: 'Green',  hex: '#21b04b', n: [0, 0, 1],  right: [1, 0, 0],  up: [0, 1, 0] },
-  { key: 'B', name: 'Blue',   hex: '#2a6bdf', n: [0, 0, -1], right: [-1, 0, 0], up: [0, 1, 0] },
-  { key: 'R', name: 'Red',    hex: '#e03131', n: [1, 0, 0],  right: [0, 0, -1], up: [0, 1, 0] },
-  { key: 'L', name: 'Orange', hex: '#ff8a1f', n: [-1, 0, 0], right: [0, 0, 1],  up: [0, 1, 0] },
+  { key: 'U', name: 'Top',    short: 'T', n: [0, 1, 0],  right: [1, 0, 0],  up: [0, 0, -1] },
+  { key: 'D', name: 'Bottom', short: 'Bo', n: [0, -1, 0], right: [1, 0, 0],  up: [0, 0, 1] },
+  { key: 'F', name: 'Front',  short: 'F', n: [0, 0, 1],  right: [1, 0, 0],  up: [0, 1, 0] },
+  { key: 'B', name: 'Back',   short: 'Ba', n: [0, 0, -1], right: [-1, 0, 0], up: [0, 1, 0] },
+  { key: 'R', name: 'Right',  short: 'R', n: [1, 0, 0],  right: [0, 0, -1], up: [0, 1, 0] },
+  { key: 'L', name: 'Left',   short: 'L', n: [-1, 0, 0], right: [0, 0, 1],  up: [0, 1, 0] },
 ];
 export const FACE_BY_KEY = Object.fromEntries(FACES.map((f) => [f.key, f]));
 
@@ -59,12 +61,11 @@ function turnQuarters(face, cw) {
 
 // ---------- game ----------
 export class Game {
-  constructor({ scramble = false, rng = Math.random } = {}) {
-    this.rng = rng;
-    this.reset({ scramble });
+  constructor() {
+    this.reset();
   }
 
-  reset({ scramble = false } = {}) {
+  reset() {
     this.cubies = [];
     let id = 0;
     for (let x = -1; x <= 1; x++)
@@ -74,7 +75,7 @@ export class Game {
           const pos = [x, y, z];
           const stickers = [];
           for (const f of FACES) {
-            if (dot(f.n, pos) === 1) stickers.push({ id: id++, n0: f.n, color: f.key, mark: null });
+            if (dot(f.n, pos) === 1) stickers.push({ id: id++, n0: f.n, mark: null });
           }
           this.cubies.push({ pos, M: I3, stickers });
         }
@@ -86,12 +87,6 @@ export class Game {
     this.lastPlaced = null;
     this.lastTurn = null; // { face, cw }
     this.history = [];
-    if (scramble) {
-      for (let i = 0; i < 25; i++) {
-        const face = FACES[Math.floor(this.rng() * 6)];
-        this.applyTurn(face.key, this.rng() < 0.5);
-      }
-    }
   }
 
   // ----- queries -----
@@ -104,7 +99,7 @@ export class Game {
     const out = [];
     this.cubies.forEach((cubie, cubieIndex) => {
       for (const s of cubie.stickers) {
-        out.push({ id: s.id, color: s.color, mark: s.mark, pos: cubie.pos, n: this.worldNormal(cubie, s), cubieIndex });
+        out.push({ id: s.id, mark: s.mark, pos: cubie.pos, n: this.worldNormal(cubie, s), cubieIndex });
       }
     });
     return out;

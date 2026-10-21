@@ -2,38 +2,39 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Game, FACES, FACE_BY_KEY } from '../game.js';
 
-const monochrome = (g) =>
-  FACES.every((f) => g.faceGrid(f).flat().every((s) => s && s.color === f.key));
+// Every sticker back where it started (position and facing), by id.
+const layout = (g) => g.allStickers().map((s) => `${s.id}:${s.pos.join()}|${s.n.join()}`).sort().join(' ');
 
-test('initial cube has 54 stickers, 9 per face, each face one colour', () => {
+test('initial cube has 54 stickers, 9 per face', () => {
   const g = new Game();
   assert.equal(g.allStickers().length, 54);
   for (const f of FACES) assert.equal(g.faceGrid(f).flat().filter(Boolean).length, 9);
-  assert.ok(monochrome(g));
 });
 
-test('F clockwise moves the top edge sticker onto the right face', () => {
+test('F clockwise moves the top-front edge sticker onto the right face', () => {
   const g = new Game();
+  const before = g.allStickers().find((s) => s.pos.join() === '0,1,1' && s.n.join() === '0,1,0');
   g.applyTurn('F', true);
-  const s = g.allStickers().find((s) => s.pos.join() === '1,0,1' && s.n.join() === '1,0,0');
-  assert.equal(s.color, 'U');
-  // the right face now shows a white row at its left column (next to F)
-  const col = g.faceGrid(FACE_BY_KEY.R).map((row) => row[0].color);
-  assert.deepEqual(col, ['U', 'U', 'U']);
+  const after = g.allStickers().find((s) => s.id === before.id);
+  assert.deepEqual(after.pos, [1, 0, 1]);
+  assert.deepEqual(after.n, [1, 0, 0]);
+  for (const f of FACES) assert.equal(g.faceGrid(f).flat().filter(Boolean).length, 9);
 });
 
 test('four quarter turns and cw+ccw are identities', () => {
   for (const f of FACES) {
     const g = new Game();
+    const start = layout(g);
     for (let i = 0; i < 4; i++) g.applyTurn(f.key, true);
-    assert.ok(monochrome(g), `4x ${f.key}`);
+    assert.equal(layout(g), start, `4x ${f.key}`);
     g.applyTurn(f.key, true); g.applyTurn(f.key, false);
-    assert.ok(monochrome(g), `${f.key} ${f.key}'`);
+    assert.equal(layout(g), start, `${f.key} ${f.key}'`);
   }
 });
 
-test('a scrambled cube still has exactly 9 stickers per face', () => {
-  const g = new Game({ scramble: true, rng: () => 0.37 });
+test('a twisted cube still has exactly 9 stickers per face', () => {
+  const g = new Game();
+  for (const k of 'FRUBLDFFRU') g.applyTurn(k, k !== 'R');
   for (const f of FACES) assert.equal(g.faceGrid(f).flat().filter(Boolean).length, 9);
 });
 

@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Cube Tac-Toe</title>
-  <meta name="description" content="3-D tic-tac-toe on a Rubik's cube. Place a mark, then twist a face. Two players, one screen." />
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='6' fill='%2321b04b'/%3E%3Cpath d='M9 9l14 14M23 9L9 23' stroke='%23111' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
+  <meta name="description" content="Tic-tac-toe on the shape of a Rubik's cube. Place a mark, then twist a face. Two players, one screen." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='6' fill='%23e6e9f0'/%3E%3Cpath d='M9 9l14 14M23 9L9 23' stroke='%23e5484d' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -56,7 +56,6 @@
       <section class="actions">
         <button id="undo" type="button" class="btn">Undo</button>
         <button id="new" type="button" class="btn btn-primary">New game</button>
-        <label class="check"><input id="scramble" type="checkbox" /> Start scrambled</label>
       </section>
 
       <details class="rules">
@@ -64,7 +63,8 @@
         <ul>
           <li>Two players share this screen and alternate turns. X goes first.</li>
           <li>On your turn, first place your mark on any empty square on any face (click the cube or the unfolded map).</li>
-          <li>Then you <em>must</em> twist one face a quarter turn, in either direction. Marks ride along with their stickers.</li>
+          <li>Then you <em>must</em> twist one face a quarter turn, in either direction. Marks ride along with their squares.</li>
+          <li>Faces are named by position (Top, Front, Right…). The centre square of each face is labelled and never moves, so the names stay put while the cube turns.</li>
           <li>Three of your marks in a row, column or diagonal on any single face wins. Lines are checked after each placement and after each twist.</li>
           <li>If your twist completes a line for your opponent but not for you, your opponent wins. If it completes lines for both, you win.</li>
           <li>All 54 squares full with no line is a draw.</li>
