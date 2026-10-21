@@ -24,6 +24,19 @@ Three.js is vendored under `vendor/`, so there is no build step and no CDN.
 - **Lock view** snaps the camera face-on to the nearest face and centres it. While locked, drag the background or swipe with two fingers to turn the whole cube to the next face (arrow keys work too), and use the bar under the cube to twist the face you are looking at.
 - Undo (or Ctrl/Cmd+Z) takes back the last action. Scores and names are remembered in the browser.
 
+## Install it as an app
+
+The site is a Progressive Web App: it has a manifest, icons and a service
+worker, so it can be installed and played offline.
+
+- **Chrome or Edge (desktop and Android):** open the site, then click *Install app*
+  in the side panel or the install icon at the right end of the address bar.
+- **Safari on Mac:** File → Add to Dock.
+- **Safari on iPhone or iPad:** Share → Add to Home Screen.
+
+It then opens in its own window with the Cube Tac-Toe icon and keeps working
+without a connection. Updates are picked up on the next online launch.
+
 ## Run locally
 
 ```sh

@@ -119,6 +119,8 @@ button, input { font: inherit; }
 .btn:hover:not(:disabled) { border-color: var(--accent); }
 .btn:disabled { opacity: .4; cursor: not-allowed; }
 .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-install { border-color: var(--sticker); color: var(--sticker); }
+.btn-install[hidden] { display: none; }
 .check { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: .9rem; margin-left: auto; }
 
 .rules summary { cursor: pointer; color: var(--muted); font-weight: 600; }

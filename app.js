@@ -675,5 +675,27 @@ syncFromState();
 updateUI();
 loop();
 
+// ---------------------------------------------------------------- install as an app
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').catch(() => { /* offline support is optional */ }); });
+}
+let installPrompt = null;
+window.addEventListener('beforeinstallprompt', (ev) => {
+  ev.preventDefault();
+  installPrompt = ev;
+  $('install').hidden = false;
+});
+$('install').addEventListener('click', async () => {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  const { outcome } = await installPrompt.userChoice;
+  if (outcome === 'accepted') { $('install').hidden = true; toast('Installed. Find Cube Tac-Toe with your other apps.'); }
+  installPrompt = null;
+});
+window.addEventListener('appinstalled', () => { $('install').hidden = true; });
+if (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone) {
+  $('install-help').hidden = true;
+}
+
 // Debug/test hook (read-only use): window.__ctt.game, .camera, .stickerMeshes
 window.__ctt = { game, camera, stickerMeshes, renderer, get lock() { return lock; }, get animating() { return !!camAnim; } };

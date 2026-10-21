@@ -1,0 +1,17 @@
+{
+  "name": "Cube Tac-Toe",
+  "short_name": "Cube Tac-Toe",
+  "description": "Tic-tac-toe on the shape of a Rubik's cube. Place a mark, then twist a layer. Two players, one screen.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f1117",
+  "theme_color": "#0f1117",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
