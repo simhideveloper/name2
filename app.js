@@ -1,6 +1,6 @@
 import * as THREE from './vendor/three.module.js';
 import { OrbitControls } from './vendor/OrbitControls.js';
-import { Game, FACES, FACE_BY_KEY, faceAxis, turnAngle } from './game.js';
+import { Game, FACES, SLICES, LAYERS, LAYER_BY_KEY, layerName, moveFor, turnAngle } from './game.js';
 
 // ---------------------------------------------------------------- state
 const game = new Game();
@@ -113,43 +113,20 @@ function cubeRotate(axis, omega) {
   updateUI();
 }
 
-/**
- * A swipe in locked mode. `d` is the screen-space swipe direction as a world
- * vector (±right or ±up of the locked view); `grid` is the [row, col] of the
- * sticker the swipe started on, or null for the background.
- */
-function lockedSwipe(d, grid) {
+/** Turn the view (locked mode only) so the front face moves along world direction `d`. */
+function viewSwipe(d) {
+  if (!lock || camAnim) return;
   const right = lockRight();
   const horizontal = Math.abs(d.dot(right)) > 0.5;
-  let layerNormal = null;
-  if (grid) {
-    const [r, c] = grid;
-    if (horizontal && r !== 1) layerNormal = lock.up.clone().multiplyScalar(r === 0 ? 1 : -1);
-    if (!horizontal && c !== 1) layerNormal = right.clone().multiplyScalar(c === 2 ? 1 : -1);
-  }
-  if (layerNormal) {
-    // Twist the neighbouring layer so its front stickers move along d.
-    const omega = Math.sign(layerNormal.clone().cross(lock.n).dot(d));
-    const face = faceByNormal(layerNormal);
-    if (game.phase === 'place') { toast('Place a mark first, then swipe to twist.'); return; }
-    if (game.phase === 'over') return;
-    onTwist(face.key, omega < 0);
-    return;
-  }
-  // Middle band or background: turn the whole cube so the front moves along d.
   const axis = horizontal ? lock.up.clone() : right;
   const omega = Math.sign(axis.clone().cross(lock.n).dot(d));
   cubeRotate(axis, omega);
 }
-
-/** [row, col] of a sticker as seen in the locked view, or null if it is not on the locked face. */
-function lockedGrid(stickerId) {
-  const found = game.sticker(stickerId);
-  const n = game.worldNormal(found.cubie, found.sticker);
-  if (n[0] !== lock.n.x || n[1] !== lock.n.y || n[2] !== lock.n.z) return null;
-  const right = lockRight();
-  const p = new THREE.Vector3(...found.cubie.pos);
-  return [1 - Math.round(p.dot(lock.up)), Math.round(p.dot(right)) + 1];
+/** Screen-space swipe (pixels, y down) to a world direction in the locked view. */
+function screenToLockedDir(dx, dy) {
+  return Math.abs(dx) > Math.abs(dy)
+    ? lockRight().multiplyScalar(Math.sign(dx))
+    : lock.up.clone().multiplyScalar(-Math.sign(dy));
 }
 
 scene.add(new THREE.AmbientLight(0xffffff, 0.9));
@@ -165,14 +142,13 @@ const bodyGeo = new THREE.BoxGeometry(CUBIE, CUBIE, CUBIE);
 const bodyMat = new THREE.MeshStandardMaterial({ color: 0x14161c, roughness: 0.5, metalness: 0.15 });
 const stickerGeo = new THREE.PlaneGeometry(STICKER, STICKER);
 
-// Sticker textures: one per (mark, face label) combination, drawn on a canvas.
-// Stickers are all the same neutral tone; only X and O carry colour. Centre
-// stickers carry a small face label (T, F, R…) so faces stay identifiable.
-const STICKER_FILL = '#e6e9f0';
-const MARK_COLOR = { X: '#e5484d', O: '#2f6fed' };
+// Sticker textures: one per mark. Every sticker is the same green; X and O
+// are drawn with a dark outline so they read on it from any angle.
+const STICKER_FILL = '#2eb356';
+const MARK_COLOR = { X: '#ff3b3b', O: '#ffffff' };
 const textureCache = new Map();
-function stickerTexture(mark, label) {
-  const k = `${mark || ''}:${label || ''}`;
+function stickerTexture(mark) {
+  const k = mark || '';
   if (textureCache.has(k)) return textureCache.get(k);
   const size = 256;
   const c = document.createElement('canvas');
@@ -183,27 +159,20 @@ function stickerTexture(mark, label) {
   roundRect(ctx, 6, 6, size - 12, size - 12, 34);
   ctx.fill();
   ctx.lineWidth = 6;
-  ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+  ctx.strokeStyle = 'rgba(0,0,0,0.18)';
   ctx.stroke();
-  if (label) {
-    ctx.fillStyle = 'rgba(20,22,28,0.45)';
-    ctx.font = '700 48px system-ui, sans-serif';
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillText(label, size - 30, size - 26);
-  }
+  ctx.lineCap = 'round';
   if (mark === 'X') {
-    ctx.strokeStyle = MARK_COLOR.X;
-    ctx.lineWidth = 36;
-    ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(74, 74); ctx.lineTo(size - 74, size - 74);
     ctx.moveTo(size - 74, 74); ctx.lineTo(74, size - 74);
-    ctx.stroke();
+    ctx.strokeStyle = '#111'; ctx.lineWidth = 46; ctx.stroke();
+    ctx.strokeStyle = MARK_COLOR.X; ctx.lineWidth = 30; ctx.stroke();
   } else if (mark === 'O') {
     ctx.beginPath();
     ctx.arc(size / 2, size / 2, 62, 0, Math.PI * 2);
-    ctx.strokeStyle = MARK_COLOR.O; ctx.lineWidth = 34; ctx.stroke();
+    ctx.strokeStyle = '#111'; ctx.lineWidth = 42; ctx.stroke();
+    ctx.strokeStyle = MARK_COLOR.O; ctx.lineWidth = 26; ctx.stroke();
   }
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -229,7 +198,7 @@ game.cubies.forEach((cubie, i) => {
   const g = new THREE.Group();
   g.add(new THREE.Mesh(bodyGeo, bodyMat));
   for (const s of cubie.stickers) {
-    const mat = new THREE.MeshBasicMaterial({ map: stickerTexture(null, faceLabel(cubie, s)), transparent: true });
+    const mat = new THREE.MeshBasicMaterial({ map: stickerTexture(null), transparent: true });
     const mesh = new THREE.Mesh(stickerGeo, mat);
     const face = FACES.find((f) => f.n.join() === s.n0.join());
     const n = new THREE.Vector3(...s.n0);
@@ -244,11 +213,31 @@ game.cubies.forEach((cubie, i) => {
   cubeGroup.add(g);
 });
 
-// Centre stickers (cubie with exactly one sticker) are labelled with their face.
-function faceLabel(cubie, s) {
-  if (cubie.stickers.length !== 1) return null;
-  return FACES.find((f) => f.n.join() === s.n0.join()).short;
+// Face names float just past the top edge of each face. They are fixed in the
+// world (faces are named by position), so they stay put while layers turn.
+function labelSprite(text) {
+  const c = document.createElement('canvas');
+  c.width = 384; c.height = 128;
+  const ctx = c.getContext('2d');
+  ctx.font = '700 64px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round'; ctx.lineWidth = 12; ctx.strokeStyle = 'rgba(8,10,16,0.85)';
+  ctx.strokeText(text, 192, 66);
+  ctx.fillStyle = '#e8eaf0';
+  ctx.fillText(text, 192, 66);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+  sp.scale.set(1.2, 0.4, 1);
+  return sp;
 }
+const faceLabels = FACES.map((f) => {
+  const sp = labelSprite(f.name);
+  sp.position.copy(new THREE.Vector3(...f.n).multiplyScalar(1.45)).addScaledVector(new THREE.Vector3(...f.up), 2.15);
+  sp.userData.n = new THREE.Vector3(...f.n);
+  scene.add(sp);
+  return sp;
+});
 
 const m4 = new THREE.Matrix4();
 function syncFromState() {
@@ -261,7 +250,7 @@ function syncFromState() {
     g.scale.set(1, 1, 1);
     for (const s of cubie.stickers) {
       const mesh = stickerMeshes.get(s.id);
-      const tex = stickerTexture(s.mark, faceLabel(cubie, s));
+      const tex = stickerTexture(s.mark);
       if (mesh.material.map !== tex) { mesh.material.map = tex; mesh.material.needsUpdate = true; }
     }
   });
@@ -277,7 +266,8 @@ function makeHighlight(color, opacity) {
   scene.add(m);
   return m;
 }
-const hoverMeshes = Array.from({ length: 9 }, () => makeHighlight(0xffffff, 0.35));
+const hoverMeshes = Array.from({ length: 24 }, () => makeHighlight(0xffffff, 0.35));
+const layerStickerIds = (key) => game.layerCubieIndices(key).flatMap((i) => game.cubies[i].stickers.map((s) => s.id));
 const winMeshes = Array.from({ length: 9 }, () => makeHighlight(0xffd21f, 0.55));
 const wp = new THREE.Vector3(), wq = new THREE.Quaternion(), wn = new THREE.Vector3();
 function placeOver(hl, stickerId) {
@@ -298,14 +288,13 @@ function showWin() {
 }
 
 // ---------------------------------------------------------------- twist animation
-function animateTurn(faceKey, cw) {
-  const face = FACE_BY_KEY[faceKey];
-  const { axis } = faceAxis(face);
-  const indices = game.layerCubieIndices(faceKey);
+function animateTurn(key, cw) {
+  const { axis } = moveFor(key, cw);
+  const indices = game.layerCubieIndices(key);
   const pivot = new THREE.Group();
   cubeGroup.add(pivot);
   for (const i of indices) pivot.attach(cubieGroups[i]);
-  const target = turnAngle(face, cw);
+  const target = turnAngle(key, cw);
   const axisName = 'xyz'[axis];
   const duration = 320;
   const start = performance.now();
@@ -337,33 +326,113 @@ function pickSticker(ev) {
   const hits = raycaster.intersectObjects([...stickerMeshes.values()], false);
   return hits.length ? hits[0].object.userData.stickerId : null;
 }
-renderer.domElement.addEventListener('pointerdown', (ev) => {
-  downPos = { x: ev.clientX, y: ev.clientY, stickerId: lock ? pickSticker(ev) : null };
-});
-renderer.domElement.addEventListener('pointerup', (ev) => {
-  if (!downPos) return;
-  const dx = ev.clientX - downPos.x, dy = ev.clientY - downPos.y;
-  const start = downPos;
-  downPos = null;
-  const moved = Math.hypot(dx, dy);
-  if (moved <= 6) {
-    const id = pickSticker(ev);
-    if (id != null) onStickerClick(id);
+/**
+ * Gestures. One pointer that starts on a sticker twists the layer under it
+ * (a tap places a mark). Everything else only moves the view: a drag on the
+ * background orbits (free) or snap-turns the cube (locked), and two fingers
+ * do the same from anywhere. Handlers run in the capture phase so a twist
+ * can be kept away from the orbit controls.
+ */
+const touch = { pointers: new Map(), gesture: null, sticker: null, done: false };
+const canvas = renderer.domElement;
+canvas.addEventListener('pointerdown', (ev) => {
+  const pt = { x0: ev.clientX, y0: ev.clientY, x: ev.clientX, y: ev.clientY };
+  if (touch.pointers.size === 0) {
+    touch.pointers.set(ev.pointerId, pt);
+    touch.done = false;
+    const hit = pickSticker(ev);
+    if (hit != null) {
+      touch.gesture = 'twist'; touch.sticker = hit;
+      ev.stopImmediatePropagation();
+      try { canvas.setPointerCapture(ev.pointerId); } catch { /* not required */ }
+    } else if (lock) {
+      touch.gesture = 'view';
+      try { canvas.setPointerCapture(ev.pointerId); } catch { /* not required */ }
+    } else {
+      touch.gesture = 'orbit'; // the orbit controls take it from here
+    }
     return;
   }
-  if (!lock || camAnim || moved < 24) return;
-  const horizontal = Math.abs(dx) > Math.abs(dy);
-  const d = horizontal ? lockRight().multiplyScalar(Math.sign(dx)) : lock.up.clone().multiplyScalar(-Math.sign(dy));
-  const grid = start.stickerId != null ? lockedGrid(start.stickerId) : null;
-  lockedSwipe(d, grid);
-});
-renderer.domElement.addEventListener('pointermove', (ev) => {
-  if (ev.pointerType !== 'mouse' || busy || camAnim || game.phase !== 'place') { if (game.phase !== 'rotate') showHover([]); return; }
+  touch.pointers.set(ev.pointerId, pt);
+  if (touch.gesture !== 'orbit') {
+    // A second finger joins a gesture the orbit controls never saw: keep it that way.
+    touch.gesture = lock ? 'two' : 'swallow';
+    ev.stopImmediatePropagation();
+  }
+}, true);
+canvas.addEventListener('pointermove', (ev) => {
+  const pt = touch.pointers.get(ev.pointerId);
+  if (pt) { pt.x = ev.clientX; pt.y = ev.clientY; }
+}, true);
+function endPointer(ev) {
+  const pt = touch.pointers.get(ev.pointerId);
+  if (!pt) return;
+  pt.x = ev.clientX; pt.y = ev.clientY;
+  if (!touch.done) {
+    const g = touch.gesture;
+    if (g === 'twist') {
+      const dx = pt.x - pt.x0, dy = pt.y - pt.y0, moved = Math.hypot(dx, dy);
+      if (ev.type === 'pointerup' && moved <= 6) onStickerClick(touch.sticker);
+      else if (moved >= 24) swipeTwist(touch.sticker, dx, dy);
+      touch.done = true;
+    } else if (g === 'view' || g === 'two') {
+      let dx = 0, dy = 0;
+      for (const q of touch.pointers.values()) { dx += q.x - q.x0; dy += q.y - q.y0; }
+      dx /= touch.pointers.size; dy /= touch.pointers.size;
+      if (Math.hypot(dx, dy) >= 24 && lock) viewSwipe(screenToLockedDir(dx, dy));
+      touch.done = true;
+    }
+  }
+  touch.pointers.delete(ev.pointerId);
+  if (touch.pointers.size === 0) { touch.gesture = null; touch.sticker = null; }
+}
+canvas.addEventListener('pointerup', endPointer, true);
+canvas.addEventListener('pointercancel', endPointer, true);
+canvas.addEventListener('pointermove', (ev) => {
+  if (touch.pointers.size || ev.pointerType !== 'mouse' || busy || camAnim || game.phase !== 'place') { if (game.phase !== 'rotate') showHover([]); return; }
   const id = pickSticker(ev);
   const s = id != null ? game.sticker(id).sticker : null;
-  renderer.domElement.style.cursor = s && !s.mark ? 'pointer' : '';
+  canvas.style.cursor = s && !s.mark ? 'pointer' : '';
   showHover(s && !s.mark ? [id] : []);
 });
+
+/**
+ * Twist the layer under a sticker in the direction of a screen-space swipe.
+ * Works for any camera: each in-plane world axis is projected to the screen
+ * and the one best aligned with the swipe wins. Moving the sticker along
+ * world direction u means rotating about n × u; the sticker's coordinate on
+ * that axis picks the outer layer or the middle slice.
+ */
+function swipeTwist(id, dx, dy) {
+  if (busy || camAnim) return;
+  if (game.phase === 'place') { toast('Place a mark first, then swipe to twist.'); return; }
+  if (game.phase === 'over') return;
+  const found = game.sticker(id);
+  const n = new THREE.Vector3(...game.worldNormal(found.cubie, found.sticker));
+  const p = new THREE.Vector3(...found.cubie.pos);
+  const origin = stickerMeshes.get(id).getWorldPosition(new THREE.Vector3());
+  const toScreen = (v) => { const q = v.clone().project(camera); return new THREE.Vector2(q.x, -q.y); };
+  const o = toScreen(origin);
+  const len = Math.hypot(dx, dy);
+  let best = null, bestDot = 0;
+  for (const u of AXES) {
+    if (Math.abs(u.dot(n)) > 0.5) continue;
+    const sv = toScreen(origin.clone().addScaledVector(u, 0.5)).sub(o);
+    if (sv.length() < 1e-6) continue;
+    sv.normalize();
+    const dot = (sv.x * dx + sv.y * dy) / len;
+    if (dot > bestDot) { bestDot = dot; best = u; }
+  }
+  if (!best || bestDot < 0.5) return;
+  const a = n.clone().cross(best).round();
+  const axis = a.x !== 0 ? 0 : a.y !== 0 ? 1 : 2;
+  const aSign = a.x + a.y + a.z;
+  const layer = Math.round(p.getComponent(axis));
+  const key = layer === 0 ? SLICES.find((sl) => sl.axis === axis).key : FACES.find((f) => f.n[axis] === layer).key;
+  const cw = moveFor(key, true).quarters === aSign;
+  onTwist(key, cw);
+}
+
 renderer.domElement.addEventListener('pointerleave', () => { if (game.phase === 'place') showHover([]); });
 
 // ---------------------------------------------------------------- actions
@@ -386,14 +455,14 @@ function onStickerClick(id) {
   afterAction();
 }
 
-async function onTwist(faceKey, cw) {
+async function onTwist(key, cw) {
   if (busy || game.phase !== 'rotate') return;
   busy = true;
   showHover([]);
-  const res = game.rotate(faceKey, cw);
+  const res = game.rotate(key, cw);
   if (!res.ok) { busy = false; toast(res.reason); return; }
   updateUI();
-  await animateTurn(faceKey, cw);
+  await animateTurn(key, cw);
   syncFromState();
   busy = false;
   afterAction();
@@ -427,28 +496,31 @@ function undo() {
 
 // ---------------------------------------------------------------- UI
 const rotateGrid = $('rotate-grid');
-for (const f of FACES) {
+function addLayerRow(layer, grid) {
   const row = document.createElement('div');
   row.className = 'face-row';
-  row.innerHTML = `<span class="fname">${f.name}</span>`;
+  const hint = layer.like ? `<small>turns like ${layerName(layer.like)}</small>` : '';
+  row.innerHTML = `<span class="fname">${layer.name}${hint}</span>`;
   for (const [cw, glyph, label] of [[false, '↺', 'counter-clockwise'], [true, '↻', 'clockwise']]) {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'turn-btn';
     b.textContent = glyph;
-    b.title = `Twist the ${f.name} face ${label}`;
+    b.title = `Twist ${layer.name} ${label}` + (layer.like ? ` (seen from ${layerName(layer.like)})` : '');
     b.setAttribute('aria-label', b.title);
-    b.dataset.face = f.key;
-    b.addEventListener('click', () => onTwist(f.key, cw));
+    b.dataset.face = layer.key;
+    b.addEventListener('click', () => onTwist(layer.key, cw));
     row.appendChild(b);
   }
   row.addEventListener('pointerenter', () => {
     if (game.phase !== 'rotate' || busy) return;
-    showHover(game.faceGrid(f).flat().map((s) => s.id));
+    showHover(layerStickerIds(layer.key));
   });
   row.addEventListener('pointerleave', () => showHover([]));
-  rotateGrid.appendChild(row);
+  grid.appendChild(row);
 }
+for (const f of FACES) addLayerRow(f, rotateGrid);
+for (const sl of SLICES) addLayerRow(sl, $('slice-grid'));
 
 // Unfolded-cube map: 6 faces × 9 cells. Cells are rebuilt from state on every update.
 const net = $('net');
@@ -557,8 +629,8 @@ function updateUI() {
     $('lock-cw').title = `Twist the ${name} face clockwise`;
   }
   $('view-tip').textContent = lock
-    ? 'Swipe the middle row or the background to turn the cube · swipe an outer row or column to twist that layer'
-    : 'Drag to orbit · scroll or pinch to zoom · tap a square to play';
+    ? 'Swipe across the cube to twist that layer · drag the background or use two fingers to turn the cube'
+    : 'Drag the background to orbit · swipe across the cube to twist that layer · tap a square to play';
 }
 
 for (const p of ['X', 'O']) {
@@ -577,7 +649,7 @@ window.addEventListener('keydown', (ev) => {
   if (!lock) return;
   const right = lockRight();
   const arrows = { ArrowRight: right, ArrowLeft: right.clone().negate(), ArrowUp: lock.up.clone(), ArrowDown: lock.up.clone().negate() };
-  if (arrows[ev.key]) { ev.preventDefault(); lockedSwipe(arrows[ev.key], null); }
+  if (arrows[ev.key]) { ev.preventDefault(); viewSwipe(arrows[ev.key]); }
 });
 
 // ---------------------------------------------------------------- resize + loop
@@ -590,9 +662,12 @@ function resize() {
 new ResizeObserver(resize).observe(view);
 resize();
 
+const camDir = new THREE.Vector3();
 function loop(now) {
   if (camAnim) camAnim(now);
   else if (!lock) controls.update();
+  camDir.copy(camera.position).normalize();
+  for (const sp of faceLabels) sp.visible = sp.userData.n.dot(camDir) > 0.05;
   renderer.render(scene, camera);
   requestAnimationFrame(loop);
 }

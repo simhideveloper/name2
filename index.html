@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Cube Tac-Toe</title>
   <meta name="description" content="Tic-tac-toe on the shape of a Rubik's cube. Place a mark, then twist a face. Two players, one screen." />
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='6' fill='%23e6e9f0'/%3E%3Cpath d='M9 9l14 14M23 9L9 23' stroke='%23e5484d' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='6' fill='%232eb356'/%3E%3Cpath d='M9 9l14 14M23 9L9 23' stroke='%23ff3b3b' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -30,7 +30,7 @@
     <aside class="panel">
       <header class="panel-head">
         <h1>Cube Tac-Toe</h1>
-        <p>Tic-tac-toe on a Rubik's cube. Each turn: <strong>place a mark</strong>, then <strong>twist one face</strong>.</p>
+        <p>Tic-tac-toe on a Rubik's cube. Each turn: <strong>place a mark</strong>, then <strong>twist one layer</strong>.</p>
       </header>
 
       <section class="players" id="players">
@@ -48,12 +48,13 @@
 
       <section class="steps" aria-label="Turn progress">
         <div class="step" id="step-place"><span class="num">1</span> Place a mark</div>
-        <div class="step" id="step-rotate"><span class="num">2</span> Twist a face</div>
+        <div class="step" id="step-rotate"><span class="num">2</span> Twist a layer</div>
       </section>
 
       <section class="rotate" id="rotate">
-        <h2>Twist a face</h2>
+        <h2>Twist a layer</h2>
         <div class="rotate-grid" id="rotate-grid"></div>
+        <div class="rotate-grid slices" id="slice-grid"></div>
       </section>
 
       <section class="netwrap">
@@ -70,12 +71,14 @@
         <summary>Rules</summary>
         <ul>
           <li>Two players share this screen and alternate turns. X goes first.</li>
-          <li>On your turn, first place your mark on any empty square on any face (click the cube or the unfolded map).</li>
-          <li>Then you <em>must</em> twist one face a quarter turn, in either direction. Marks ride along with their squares.</li>
-          <li>Faces are named by position (Top, Front, Right…). The centre square of each face is labelled and never moves, so the names stay put while the cube turns.</li>
+          <li>On your turn, first place your mark on any empty square on any face (tap the cube or the unfolded map).</li>
+          <li>Then you <em>must</em> twist one layer a quarter turn, in either direction: any of the six faces, or one of the three middle slices. Marks ride along with their squares.</li>
+          <li>Faces are named by position (Top, Front, Right…); the floating labels stay put while the cube turns. A middle slice turns in the same sense as the face it is named after.</li>
+          <li>Swipe across the cube with one finger (or the mouse) to twist the layer under your finger in that direction; the middle row or column twists the middle slice. Drag the background, or use two fingers, to move only the view.</li>
+          <li><strong>Lock view</strong> snaps the camera face-on to the nearest face and centres it. While locked, dragging the background or swiping with two fingers turns the whole cube to the next face (arrow keys work too). The buttons under the cube twist the face you are looking at.</li>
           <li>Three of your marks in a row, column or diagonal on any single face wins. Lines are checked after each placement and after each twist.</li>
           <li>If your twist completes a line for your opponent but not for you, your opponent wins. If it completes lines for both, you win.</li>
-          <li>All 54 squares full with no line is a draw.</li>
+          <li>All 54 squares full with no line is a draw. Undo (or Ctrl/Cmd+Z) takes back the last action.</li>
         </ul>
       </details>
     </aside>

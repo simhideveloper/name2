@@ -1,6 +1,6 @@
 // Cube Tac-Toe — pure game logic (no DOM, no three.js).
 // Stickers have no colours: the game is tic-tac-toe on the cube's shape only.
-// Faces are named by position (centre cubies never move, so this is stable).
+// Faces are named by position: the face currently at +y is "Top" and so on.
 // The cube is modelled as 26 cubies. Each cubie has an integer position
 // (x, y, z ∈ {-1, 0, 1}) and an integer 3×3 orientation matrix M. Every
 // sticker stores its *original* outward normal n0 (in the cubie's own frame),
@@ -15,6 +15,17 @@ export const FACES = [
   { key: 'L', name: 'Left',   short: 'L', n: [-1, 0, 0], right: [0, 0, 1],  up: [0, 1, 0] },
 ];
 export const FACE_BY_KEY = Object.fromEntries(FACES.map((f) => [f.key, f]));
+
+// Middle slices. "cw" for a slice means clockwise as seen from the `like` face.
+export const SLICES = [
+  { key: 'M', name: 'Middle (Left–Right)', like: 'R', axis: 0 },
+  { key: 'E', name: 'Middle (Top–Bottom)', like: 'U', axis: 1 },
+  { key: 'S', name: 'Middle (Front–Back)', like: 'F', axis: 2 },
+];
+export const SLICE_BY_KEY = Object.fromEntries(SLICES.map((s) => [s.key, s]));
+export const LAYERS = [...FACES, ...SLICES];
+export const LAYER_BY_KEY = { ...FACE_BY_KEY, ...SLICE_BY_KEY };
+export const layerName = (key) => LAYER_BY_KEY[key].name;
 
 export const PLAYERS = ['X', 'O'];
 export const other = (p) => (p === 'X' ? 'O' : 'X');
@@ -46,17 +57,21 @@ export function faceAxis(face) {
 }
 
 /**
- * Rotation angle (radians, right-hand rule about the positive axis) for turning
- * `face` clockwise (cw=true) or counter-clockwise as seen from outside the cube.
- * Clockwise viewed from the tip of the outward normal is a negative rotation.
+ * Describe a quarter turn of a layer: which axis, which layer along it
+ * (-1, 0 or +1) and how many quarter turns about the *positive* axis
+ * (+1 or -1, right-hand rule). Clockwise viewed from the tip of an outward
+ * normal is a negative rotation about that normal.
  */
-export function turnAngle(face, cw) {
-  const { sign } = faceAxis(face);
-  return (-Math.PI / 2) * sign * (cw ? 1 : -1);
+export function moveFor(key, cw) {
+  if (SLICE_BY_KEY[key]) {
+    return { axis: SLICE_BY_KEY[key].axis, layer: 0, quarters: cw ? -1 : 1 };
+  }
+  const { axis, sign } = faceAxis(FACE_BY_KEY[key]);
+  return { axis, layer: sign, quarters: -sign * (cw ? 1 : -1) };
 }
-function turnQuarters(face, cw) {
-  const { sign } = faceAxis(face);
-  return -sign * (cw ? 1 : -1); // -1 or +1 quarter turns
+/** Rotation angle in radians about the positive axis for a turn. */
+export function turnAngle(key, cw) {
+  return moveFor(key, cw).quarters * (Math.PI / 2);
 }
 
 // ---------- game ----------
@@ -124,9 +139,9 @@ export class Game {
     return grid;
   }
 
-  layerCubieIndices(faceKey) {
-    const { axis, sign } = faceAxis(FACE_BY_KEY[faceKey]);
-    return this.cubies.map((c, i) => (c.pos[axis] === sign ? i : -1)).filter((i) => i >= 0);
+  layerCubieIndices(key) {
+    const { axis, layer } = moveFor(key, true);
+    return this.cubies.map((c, i) => (c.pos[axis] === layer ? i : -1)).filter((i) => i >= 0);
   }
 
   emptyCount() {
@@ -189,13 +204,13 @@ export class Game {
     return { ok: true };
   }
 
-  /** Rotate a face (the mandatory second half of a turn). */
-  rotate(faceKey, cw) {
+  /** Rotate a face or middle slice (the mandatory second half of a turn). */
+  rotate(key, cw) {
     if (this.phase !== 'rotate') return { ok: false, reason: 'Place a mark first.' };
-    if (!FACE_BY_KEY[faceKey]) return { ok: false, reason: 'Unknown face.' };
+    if (!LAYER_BY_KEY[key]) return { ok: false, reason: 'Unknown layer.' };
     this.history.push(this.snapshot());
-    this.applyTurn(faceKey, cw);
-    this.lastTurn = { face: faceKey, cw };
+    this.applyTurn(key, cw);
+    this.lastTurn = { face: key, cw };
     this.evaluate();
     if (!this.winner) {
       this.current = other(this.current);
@@ -205,13 +220,12 @@ export class Game {
     return { ok: true };
   }
 
-  /** Low-level: apply a quarter turn to the cube state (no rule checks). */
-  applyTurn(faceKey, cw) {
-    const face = FACE_BY_KEY[faceKey];
-    const { axis, sign } = faceAxis(face);
-    const R = rotMatrix(axis, turnQuarters(face, cw));
+  /** Low-level: apply a quarter turn of a face or slice to the cube state (no rule checks). */
+  applyTurn(key, cw) {
+    const { axis, layer, quarters } = moveFor(key, cw);
+    const R = rotMatrix(axis, quarters);
     for (const cubie of this.cubies) {
-      if (cubie.pos[axis] !== sign) continue;
+      if (cubie.pos[axis] !== layer) continue;
       cubie.pos = matVec(R, cubie.pos);
       cubie.M = matMul(R, cubie.M);
     }

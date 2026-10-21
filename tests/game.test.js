@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Game, FACES, FACE_BY_KEY } from '../game.js';
+import { Game, FACES, FACE_BY_KEY, SLICES, moveFor } from '../game.js';
 
 // Every sticker back where it started (position and facing), by id.
 const layout = (g) => g.allStickers().map((s) => `${s.id}:${s.pos.join()}|${s.n.join()}`).sort().join(' ');
@@ -30,6 +30,41 @@ test('four quarter turns and cw+ccw are identities', () => {
     g.applyTurn(f.key, true); g.applyTurn(f.key, false);
     assert.equal(layout(g), start, `${f.key} ${f.key}'`);
   }
+});
+
+test('middle slices turn like their reference face and are identities after four turns', () => {
+  for (const sl of SLICES) {
+    const g = new Game();
+    const start = layout(g);
+    const ref = moveFor(sl.like, true), mv = moveFor(sl.key, true);
+    assert.equal(mv.axis, ref.axis); assert.equal(mv.quarters, ref.quarters); assert.equal(mv.layer, 0);
+    g.applyTurn(sl.key, true);
+    assert.notEqual(layout(g), start);
+    for (const f of FACES) assert.equal(g.faceGrid(f).flat().filter(Boolean).length, 9);
+    for (let i = 0; i < 3; i++) g.applyTurn(sl.key, true);
+    assert.equal(layout(g), start, `4x ${sl.key}`);
+  }
+});
+
+test('E slice clockwise (seen from Top) moves the Front centre to the Left face', () => {
+  const g = new Game();
+  const centre = g.allStickers().find((s) => s.pos.join() === '0,0,1' && s.n.join() === '0,0,1');
+  g.applyTurn('E', true);
+  const after = g.allStickers().find((s) => s.id === centre.id);
+  assert.deepEqual(after.n, [-1, 0, 0]);
+  // U clockwise sends the top-front edge the same way: both turn like the Top face.
+  const g2 = new Game();
+  const edge = g2.allStickers().find((s) => s.pos.join() === '0,1,1' && s.n.join() === '0,0,1');
+  g2.applyTurn('U', true);
+  assert.deepEqual(g2.allStickers().find((s) => s.id === edge.id).n, [-1, 0, 0]);
+});
+
+test('a slice turn is a legal second half of a turn', () => {
+  const g = new Game();
+  g.place(g.faceGrid(FACE_BY_KEY.F)[0][0].id);
+  assert.equal(g.rotate('M', false).ok, true);
+  assert.deepEqual(g.lastTurn, { face: 'M', cw: false });
+  assert.equal(g.current, 'O');
 });
 
 test('a twisted cube still has exactly 9 stickers per face', () => {
