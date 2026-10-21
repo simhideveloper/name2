@@ -29,6 +29,17 @@ button, input { font: inherit; }
   color: var(--muted); pointer-events: none; opacity: .8; }
 
 .hud { position: absolute; top: 14px; left: 14px; right: 14px; pointer-events: none; }
+.hud-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.lock-btn { pointer-events: auto; padding: 9px 14px; border-radius: 999px; border: 1px solid var(--line); background: rgba(23, 26, 35, .85);
+  color: var(--text); font-weight: 600; cursor: pointer; backdrop-filter: blur(8px); }
+.lock-btn:hover { border-color: var(--accent); }
+.lock-btn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.lockbar { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px;
+  padding: 8px 10px; border-radius: 999px; background: rgba(23, 26, 35, .88); border: 1px solid var(--line); backdrop-filter: blur(8px); }
+.lockbar[hidden] { display: none; }
+.lock-face-label { font-size: .9rem; color: var(--muted); white-space: nowrap; }
+.lock-face-label strong { color: var(--text); }
+.turn-btn.big { width: 44px; height: 44px; font-size: 1.4rem; border-radius: 12px; }
 .hud-status { display: inline-block; padding: 10px 14px; border-radius: 999px; background: rgba(23, 26, 35, .85);
   border: 1px solid var(--line); backdrop-filter: blur(8px); font-weight: 600; font-size: 1rem; }
 .hud-status.x { border-color: var(--x); box-shadow: 0 0 0 3px rgba(229,72,77,.18); }

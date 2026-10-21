@@ -12,10 +12,18 @@
   <main class="layout">
     <section class="view" id="view" aria-label="3-D cube">
       <div class="hud" id="hud">
-        <div class="hud-status" id="status"></div>
+        <div class="hud-row">
+          <div class="hud-status" id="status"></div>
+          <button id="lock" type="button" class="lock-btn" aria-pressed="false" title="Lock the view face-on to the nearest face">Lock view</button>
+        </div>
         <div class="hud-hint" id="hint"></div>
       </div>
-      <div class="view-tip">Drag to orbit · scroll or pinch to zoom · tap a square to play</div>
+      <div class="lockbar" id="lockbar" hidden>
+        <button id="lock-ccw" type="button" class="turn-btn big" aria-label="Twist this face counter-clockwise">↺</button>
+        <span class="lock-face-label">Twist <strong id="lock-face">Front</strong></span>
+        <button id="lock-cw" type="button" class="turn-btn big" aria-label="Twist this face clockwise">↻</button>
+      </div>
+      <div class="view-tip" id="view-tip">Drag to orbit · scroll or pinch to zoom · tap a square to play</div>
       <div class="toast" id="toast" role="status" aria-live="polite"></div>
     </section>
 

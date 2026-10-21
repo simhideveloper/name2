@@ -32,6 +32,126 @@ controls.minDistance = 5;
 controls.maxDistance = 14;
 controls.rotateSpeed = 0.8;
 
+// ---------------------------------------------------------------- locked view
+// When locked, the camera sits face-on to one face (n) with a fixed screen-up
+// (up); both are axis-aligned. Orbit controls are off and swipes drive the cube.
+const CAM_DIST = 7.4;
+const AXES = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]].map((a) => new THREE.Vector3(...a));
+let lock = null; // { n, up } or null
+let camAnim = null;
+
+function nearestAxis(v, perpendicularTo = null) {
+  let best = null, bestDot = -Infinity;
+  for (const a of AXES) {
+    if (perpendicularTo && Math.abs(a.dot(perpendicularTo)) > 0.5) continue;
+    const d = a.dot(v);
+    if (d > bestDot) { bestDot = d; best = a; }
+  }
+  return best.clone();
+}
+const faceByNormal = (v) => FACES.find((f) => f.n[0] === Math.round(v.x) && f.n[1] === Math.round(v.y) && f.n[2] === Math.round(v.z));
+const lockRight = () => lock.up.clone().cross(lock.n); // right = up × n
+
+/** Smoothly move the camera to look at the origin from `dir` with screen-up `up`. */
+function flyTo(dir, up) {
+  const p0 = camera.position.clone().normalize();
+  const u0 = camera.up.clone();
+  const p1 = dir.clone().normalize();
+  const u1 = up.clone().normalize();
+  const start = performance.now();
+  const duration = 380;
+  return new Promise((resolve) => {
+    camAnim = (now) => {
+      const t = Math.min(1, (now - start) / duration);
+      const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      const p = p0.clone().lerp(p1, e).normalize().multiplyScalar(CAM_DIST);
+      camera.position.copy(p);
+      camera.up.copy(u0.clone().lerp(u1, e).normalize());
+      camera.lookAt(0, 0, 0);
+      if (t >= 1) { camAnim = null; resolve(); }
+    };
+  });
+}
+
+function lockView() {
+  if (lock || camAnim) return;
+  const dir = camera.position.clone().normalize();
+  const n = nearestAxis(dir);
+  const screenUp = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+  const up = nearestAxis(screenUp, n);
+  lock = { n, up };
+  controls.enabled = false;
+  showHover([]);
+  flyTo(n, up);
+  updateUI();
+}
+
+function unlockView() {
+  if (!lock || camAnim) return;
+  const { n, up } = lock;
+  lock = null;
+  // Settle on a slightly elevated three-quarter view with Y up, which is what
+  // the orbit controls assume; keep the screen-up continuous where possible.
+  const Y = new THREE.Vector3(0, 1, 0);
+  const dir = Math.abs(n.y) > 0.5 ? n.clone().addScaledVector(up, -0.6) : n.clone().addScaledVector(Y, 0.45);
+  flyTo(dir, Y).then(() => {
+    controls.enabled = true;
+    controls.target.set(0, 0, 0);
+    controls.update();
+  });
+  updateUI();
+}
+
+/** Rotate the whole cube (really: the locked camera) a quarter turn about `axis` with sign `omega`. */
+function cubeRotate(axis, omega) {
+  if (!lock || camAnim) return;
+  const q = new THREE.Quaternion().setFromAxisAngle(axis, -omega * Math.PI / 2);
+  const n = lock.n.clone().applyQuaternion(q).round();
+  const up = lock.up.clone().applyQuaternion(q).round();
+  lock = { n, up };
+  flyTo(n, up).then(updateUI);
+  updateUI();
+}
+
+/**
+ * A swipe in locked mode. `d` is the screen-space swipe direction as a world
+ * vector (±right or ±up of the locked view); `grid` is the [row, col] of the
+ * sticker the swipe started on, or null for the background.
+ */
+function lockedSwipe(d, grid) {
+  const right = lockRight();
+  const horizontal = Math.abs(d.dot(right)) > 0.5;
+  let layerNormal = null;
+  if (grid) {
+    const [r, c] = grid;
+    if (horizontal && r !== 1) layerNormal = lock.up.clone().multiplyScalar(r === 0 ? 1 : -1);
+    if (!horizontal && c !== 1) layerNormal = right.clone().multiplyScalar(c === 2 ? 1 : -1);
+  }
+  if (layerNormal) {
+    // Twist the neighbouring layer so its front stickers move along d.
+    const omega = Math.sign(layerNormal.clone().cross(lock.n).dot(d));
+    const face = faceByNormal(layerNormal);
+    if (game.phase === 'place') { toast('Place a mark first, then swipe to twist.'); return; }
+    if (game.phase === 'over') return;
+    onTwist(face.key, omega < 0);
+    return;
+  }
+  // Middle band or background: turn the whole cube so the front moves along d.
+  const axis = horizontal ? lock.up.clone() : right;
+  const omega = Math.sign(axis.clone().cross(lock.n).dot(d));
+  cubeRotate(axis, omega);
+}
+
+/** [row, col] of a sticker as seen in the locked view, or null if it is not on the locked face. */
+function lockedGrid(stickerId) {
+  const found = game.sticker(stickerId);
+  const n = game.worldNormal(found.cubie, found.sticker);
+  if (n[0] !== lock.n.x || n[1] !== lock.n.y || n[2] !== lock.n.z) return null;
+  const right = lockRight();
+  const p = new THREE.Vector3(...found.cubie.pos);
+  return [1 - Math.round(p.dot(lock.up)), Math.round(p.dot(right)) + 1];
+}
+
 scene.add(new THREE.AmbientLight(0xffffff, 0.9));
 const key = new THREE.DirectionalLight(0xffffff, 1.4); key.position.set(5, 8, 6); scene.add(key);
 const fill = new THREE.DirectionalLight(0xffffff, 0.5); fill.position.set(-6, -3, -5); scene.add(fill);
@@ -217,17 +337,28 @@ function pickSticker(ev) {
   const hits = raycaster.intersectObjects([...stickerMeshes.values()], false);
   return hits.length ? hits[0].object.userData.stickerId : null;
 }
-renderer.domElement.addEventListener('pointerdown', (ev) => { downPos = { x: ev.clientX, y: ev.clientY }; });
+renderer.domElement.addEventListener('pointerdown', (ev) => {
+  downPos = { x: ev.clientX, y: ev.clientY, stickerId: lock ? pickSticker(ev) : null };
+});
 renderer.domElement.addEventListener('pointerup', (ev) => {
   if (!downPos) return;
-  const moved = Math.hypot(ev.clientX - downPos.x, ev.clientY - downPos.y);
+  const dx = ev.clientX - downPos.x, dy = ev.clientY - downPos.y;
+  const start = downPos;
   downPos = null;
-  if (moved > 6) return;
-  const id = pickSticker(ev);
-  if (id != null) onStickerClick(id);
+  const moved = Math.hypot(dx, dy);
+  if (moved <= 6) {
+    const id = pickSticker(ev);
+    if (id != null) onStickerClick(id);
+    return;
+  }
+  if (!lock || camAnim || moved < 24) return;
+  const horizontal = Math.abs(dx) > Math.abs(dy);
+  const d = horizontal ? lockRight().multiplyScalar(Math.sign(dx)) : lock.up.clone().multiplyScalar(-Math.sign(dy));
+  const grid = start.stickerId != null ? lockedGrid(start.stickerId) : null;
+  lockedSwipe(d, grid);
 });
 renderer.domElement.addEventListener('pointermove', (ev) => {
-  if (ev.pointerType !== 'mouse' || busy || game.phase !== 'place') { if (game.phase !== 'rotate') showHover([]); return; }
+  if (ev.pointerType !== 'mouse' || busy || camAnim || game.phase !== 'place') { if (game.phase !== 'rotate') showHover([]); return; }
   const id = pickSticker(ev);
   const s = id != null ? game.sticker(id).sticker : null;
   renderer.domElement.style.cursor = s && !s.mark ? 'pointer' : '';
@@ -410,6 +541,24 @@ function updateUI() {
 
   renderNet();
   if (game.winner && game.winner !== 'draw') showWin(); else winMeshes.forEach((m) => { m.visible = false; });
+
+  // Locked-view chrome
+  const lockBtn = $('lock');
+  lockBtn.textContent = lock ? 'Unlock view' : 'Lock view';
+  lockBtn.classList.toggle('on', !!lock);
+  lockBtn.setAttribute('aria-pressed', lock ? 'true' : 'false');
+  $('lockbar').hidden = !lock;
+  if (lock) {
+    const name = faceByNormal(lock.n).name;
+    $('lock-face').textContent = name;
+    $('lock-ccw').disabled = !canTwist;
+    $('lock-cw').disabled = !canTwist;
+    $('lock-ccw').title = `Twist the ${name} face counter-clockwise`;
+    $('lock-cw').title = `Twist the ${name} face clockwise`;
+  }
+  $('view-tip').textContent = lock
+    ? 'Swipe the middle row or the background to turn the cube · swipe an outer row or column to twist that layer'
+    : 'Drag to orbit · scroll or pinch to zoom · tap a square to play';
 }
 
 for (const p of ['X', 'O']) {
@@ -419,9 +568,16 @@ for (const p of ['X', 'O']) {
 }
 $('new').addEventListener('click', newGame);
 $('undo').addEventListener('click', undo);
+$('lock').addEventListener('click', () => (lock ? unlockView() : lockView()));
+$('lock-ccw').addEventListener('click', () => { if (lock) onTwist(faceByNormal(lock.n).key, false); });
+$('lock-cw').addEventListener('click', () => { if (lock) onTwist(faceByNormal(lock.n).key, true); });
 window.addEventListener('keydown', (ev) => {
   if (ev.target.tagName === 'INPUT') return;
-  if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'z') { ev.preventDefault(); undo(); }
+  if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'z') { ev.preventDefault(); undo(); return; }
+  if (!lock) return;
+  const right = lockRight();
+  const arrows = { ArrowRight: right, ArrowLeft: right.clone().negate(), ArrowUp: lock.up.clone(), ArrowDown: lock.up.clone().negate() };
+  if (arrows[ev.key]) { ev.preventDefault(); lockedSwipe(arrows[ev.key], null); }
 });
 
 // ---------------------------------------------------------------- resize + loop
@@ -434,8 +590,9 @@ function resize() {
 new ResizeObserver(resize).observe(view);
 resize();
 
-function loop() {
-  controls.update();
+function loop(now) {
+  if (camAnim) camAnim(now);
+  else if (!lock) controls.update();
   renderer.render(scene, camera);
   requestAnimationFrame(loop);
 }
@@ -444,4 +601,4 @@ updateUI();
 loop();
 
 // Debug/test hook (read-only use): window.__ctt.game, .camera, .stickerMeshes
-window.__ctt = { game, camera, stickerMeshes, renderer };
+window.__ctt = { game, camera, stickerMeshes, renderer, get lock() { return lock; }, get animating() { return !!camAnim; } };
