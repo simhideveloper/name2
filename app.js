@@ -35,7 +35,7 @@ controls.rotateSpeed = 0.8;
 // ---------------------------------------------------------------- locked view
 // When locked, the camera sits face-on to one face (n) with a fixed screen-up
 // (up); both are axis-aligned. Orbit controls are off and swipes drive the cube.
-const CAM_DIST = 7.4;
+let camDist = 7.4; // set by fitCamera() from the stage's aspect ratio
 const AXES = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]].map((a) => new THREE.Vector3(...a));
 let lock = null; // { n, up } or null
 let camAnim = null;
@@ -64,7 +64,7 @@ function flyTo(dir, up) {
     camAnim = (now) => {
       const t = Math.min(1, (now - start) / duration);
       const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-      const p = p0.clone().lerp(p1, e).normalize().multiplyScalar(CAM_DIST);
+      const p = p0.clone().lerp(p1, e).normalize().multiplyScalar(camDist);
       camera.position.copy(p);
       camera.up.copy(u0.clone().lerp(u1, e).normalize());
       camera.lookAt(0, 0, 0);
@@ -233,7 +233,7 @@ function labelSprite(text) {
 }
 const faceLabels = FACES.map((f) => {
   const sp = labelSprite(f.name);
-  sp.position.copy(new THREE.Vector3(...f.n).multiplyScalar(1.45)).addScaledVector(new THREE.Vector3(...f.up), 2.15);
+  sp.position.copy(new THREE.Vector3(...f.n).multiplyScalar(1.5)).addScaledVector(new THREE.Vector3(...f.up), 2.1);
   sp.userData.n = new THREE.Vector3(...f.n);
   scene.add(sp);
   return sp;
@@ -495,12 +495,18 @@ function undo() {
 }
 
 // ---------------------------------------------------------------- UI
-const rotateGrid = $('rotate-grid');
-function addLayerRow(layer, grid) {
-  const row = document.createElement('div');
-  row.className = 'face-row';
-  const hint = layer.like ? `<small>turns like ${layerName(layer.like)}</small>` : '';
-  row.innerHTML = `<span class="fname">${layer.name}${hint}</span>`;
+const nameOf = (p) => (names[p] || '').trim() || (p === 'X' ? 'Player 1' : 'Player 2');
+const SHORT = { M: 'Mid L–R', E: 'Mid T–B', S: 'Mid F–B' };
+
+// Twist controls (dock › Twist): one compact card per layer.
+function addLayerCard(layer, grid) {
+  const card = document.createElement('div');
+  card.className = 'layer';
+  const name = document.createElement('span');
+  name.className = 'lname';
+  name.textContent = SHORT[layer.key] || layer.name;
+  name.title = layer.like ? `${layer.name}: turns like ${layerName(layer.like)}` : `${layer.name} face`;
+  card.appendChild(name);
   for (const [cw, glyph, label] of [[false, '↺', 'counter-clockwise'], [true, '↻', 'clockwise']]) {
     const b = document.createElement('button');
     b.type = 'button';
@@ -510,21 +516,21 @@ function addLayerRow(layer, grid) {
     b.setAttribute('aria-label', b.title);
     b.dataset.face = layer.key;
     b.addEventListener('click', () => onTwist(layer.key, cw));
-    row.appendChild(b);
+    card.appendChild(b);
   }
-  row.addEventListener('pointerenter', () => {
-    if (game.phase !== 'rotate' || busy) return;
+  card.addEventListener('pointerenter', (ev) => {
+    if (ev.pointerType !== 'mouse' || game.phase !== 'rotate' || busy) return;
     showHover(layerStickerIds(layer.key));
   });
-  row.addEventListener('pointerleave', () => showHover([]));
-  grid.appendChild(row);
+  card.addEventListener('pointerleave', () => showHover([]));
+  grid.appendChild(card);
 }
-for (const f of FACES) addLayerRow(f, rotateGrid);
-for (const sl of SLICES) addLayerRow(sl, $('slice-grid'));
+for (const f of FACES) addLayerCard(f, $('rotate-grid'));
+for (const sl of SLICES) addLayerCard(sl, $('slice-grid'));
 
-// Unfolded-cube map: 6 faces × 9 cells. Cells are rebuilt from state on every update.
+// Map (dock › Map): the unfolded cube, 6 faces × 9 cells, rebuilt from state.
 const net = $('net');
-const netCells = {}; // faceKey -> [[button]]
+const netCells = {};
 for (const f of FACES) {
   const wrap = document.createElement('div');
   wrap.className = 'net-slot';
@@ -536,14 +542,13 @@ for (const f of FACES) {
   const faceEl = document.createElement('div');
   faceEl.className = 'net-face';
   faceEl.dataset.face = f.key;
-  faceEl.title = `${f.name} face`;
   netCells[f.key] = [];
   for (let r = 0; r < 3; r++) {
     const rowCells = [];
     for (let c = 0; c < 3; c++) {
       const cell = document.createElement('button');
       cell.type = 'button';
-      cell.className = 'net-cell' + (r === 1 && c === 1 ? ' center' : '');
+      cell.className = 'net-cell';
       cell.addEventListener('click', () => { if (cell.dataset.id) onStickerClick(Number(cell.dataset.id)); });
       faceEl.appendChild(cell);
       rowCells.push(cell);
@@ -553,7 +558,6 @@ for (const f of FACES) {
   wrap.appendChild(faceEl);
   net.appendChild(wrap);
 }
-
 function renderNet() {
   const winIds = new Set(game.winLines.flatMap((l) => l.ids));
   for (const f of FACES) {
@@ -574,51 +578,93 @@ function renderNet() {
   }
 }
 
-const nameOf = (p) => names[p].trim() || (p === 'X' ? 'Player 1' : 'Player 2');
+// Dock tabs follow the turn (Map while placing, Twist while twisting) but can be switched by hand.
+let tab = 'map';
+function setTab(t) {
+  tab = t;
+  $('tab-map').setAttribute('aria-selected', t === 'map' ? 'true' : 'false');
+  $('tab-twist').setAttribute('aria-selected', t === 'twist' ? 'true' : 'false');
+  $('panel-map').hidden = t !== 'map';
+  $('panel-twist').hidden = t !== 'twist';
+}
+$('tab-map').addEventListener('click', () => setTab('map'));
+$('tab-twist').addEventListener('click', () => setTab('twist'));
+let lastPhase = null;
+
+// Winner card
+let winnerDismissed = false;
+$('again').addEventListener('click', () => newGame());
+$('inspect').addEventListener('click', () => { winnerDismissed = true; $('winner').hidden = true; });
+
+// Menu sheet: players, install, rules.
+function openSheet() { $('sheet').hidden = false; }
+function closeSheet() { $('sheet').hidden = true; }
+$('menu-btn').addEventListener('click', openSheet);
+$('chip-X').addEventListener('click', openSheet);
+$('chip-O').addEventListener('click', openSheet);
+$('sheet-close').addEventListener('click', closeSheet);
+$('sheet-backdrop').addEventListener('click', closeSheet);
+$('reset-scores').addEventListener('click', () => { scores.X = 0; scores.O = 0; store.set('ctt.scores', scores); updateUI(); });
+for (const p of ['X', 'O']) {
+  const input = $(`name-${p}`);
+  input.value = names[p];
+  input.addEventListener('input', () => { names[p] = input.value; store.set('ctt.names', names); updateUI(); });
+}
 
 function updateUI() {
-  const status = $('status');
-  const hint = $('hint');
-  status.classList.remove('x', 'o', 'over');
+  const turn = $('turn'), status = $('status'), hint = $('hint');
+  turn.classList.remove('x', 'o', 'over');
   if (game.winner === 'draw') {
-    status.textContent = 'Draw — every square is full.';
-    status.classList.add('over');
-    hint.textContent = 'Start a new game from the panel.';
+    status.textContent = 'Draw';
+    hint.textContent = 'Every square is full';
+    turn.classList.add('over');
   } else if (game.winner) {
-    const faces = [...new Set(game.winLines.map((l) => FACE_BY_KEY[l.face].name))].join(' & ');
-    status.textContent = `${nameOf(game.winner)} (${game.winner}) wins!`;
-    status.classList.add('over');
-    hint.textContent = `Three in a row on the ${faces} face.`;
+    const faces = [...new Set(game.winLines.map((l) => FACES.find((f) => f.key === l.face).name))].join(' & ');
+    status.textContent = `${nameOf(game.winner)} wins`;
+    hint.textContent = `Three in a row · ${faces}`;
+    turn.classList.add('over');
   } else {
-    const who = `${nameOf(game.current)} (${game.current})`;
-    status.textContent = game.phase === 'place' ? `${who}: place a mark` : `${who}: twist a face`;
-    status.classList.add(game.current.toLowerCase());
-    hint.textContent = game.phase === 'place'
-      ? 'Tap any empty square on the cube or the map.'
-      : 'Choose a face and a direction in the panel.';
+    status.textContent = game.phase === 'place' ? 'Place a mark' : 'Twist a layer';
+    hint.textContent = `${nameOf(game.current)}’s turn`;
+    turn.classList.add(game.current.toLowerCase());
   }
 
-  document.querySelectorAll('.player').forEach((el) => el.classList.toggle('active', !game.winner && el.dataset.player === game.current));
-  $('score-X').textContent = scores.X;
-  $('score-O').textContent = scores.O;
-
-  const placeStep = $('step-place'), rotateStep = $('step-rotate');
-  placeStep.className = 'step' + (game.phase === 'place' ? ' active' : game.phase === 'rotate' ? ' done' : '');
-  rotateStep.className = 'step' + (game.phase === 'rotate' ? ' active' : '');
+  for (const p of ['X', 'O']) {
+    $(`pname-${p}`).textContent = nameOf(p);
+    $(`score-${p}`).textContent = scores[p];
+    $(`chip-${p}`).classList.toggle('active', !game.winner && game.current === p);
+  }
+  $('score-line').textContent = `Score ${scores.X} – ${scores.O}`;
 
   const canTwist = game.phase === 'rotate' && !busy;
-  $('rotate').classList.toggle('disabled', !canTwist);
   document.querySelectorAll('.turn-btn').forEach((b) => { b.disabled = !canTwist; });
+  $('twist-note').hidden = game.phase !== 'place';
   $('undo').disabled = !game.canUndo() || busy;
+  $('tab-map').classList.toggle('done', game.phase === 'rotate');
+  if (game.phase !== lastPhase) {
+    if (game.phase === 'rotate') setTab('twist');
+    else if (game.phase === 'place') setTab('map');
+    lastPhase = game.phase;
+  }
 
   renderNet();
   if (game.winner && game.winner !== 'draw') showWin(); else winMeshes.forEach((m) => { m.visible = false; });
+  if (!game.winner) winnerDismissed = false;
+  const showCard = !!game.winner && !winnerDismissed;
+  if (showCard) {
+    $('winner-eyebrow').textContent = game.winner === 'draw' ? 'Game over' : 'Three in a row';
+    $('winner-title').textContent = game.winner === 'draw' ? 'It’s a draw' : `${nameOf(game.winner)} wins`;
+    $('winner-sub').textContent = game.winner === 'draw'
+      ? 'Every square is full and nobody has a line.'
+      : `Three in a row on the ${[...new Set(game.winLines.map((l) => FACES.find((f) => f.key === l.face).name))].join(' and ')} face.`;
+  }
+  $('winner').hidden = !showCard;
 
   // Locked-view chrome
   const lockBtn = $('lock');
-  lockBtn.textContent = lock ? 'Unlock view' : 'Lock view';
   lockBtn.classList.toggle('on', !!lock);
   lockBtn.setAttribute('aria-pressed', lock ? 'true' : 'false');
+  lockBtn.title = lock ? 'Unlock the view' : 'Lock the view face-on to the nearest face';
   $('lockbar').hidden = !lock;
   if (lock) {
     const name = faceByNormal(lock.n).name;
@@ -629,15 +675,10 @@ function updateUI() {
     $('lock-cw').title = `Twist the ${name} face clockwise`;
   }
   $('view-tip').textContent = lock
-    ? 'Swipe across the cube to twist that layer · drag the background or use two fingers to turn the cube'
-    : 'Drag the background to orbit · swipe across the cube to twist that layer · tap a square to play';
+    ? 'Drag the background or use two fingers to turn the cube'
+    : 'Swipe the cube to twist a layer · drag the background to orbit';
 }
 
-for (const p of ['X', 'O']) {
-  const input = $(`name-${p}`);
-  input.value = names[p];
-  input.addEventListener('input', () => { names[p] = input.value; store.set('ctt.names', names); updateUI(); });
-}
 $('new').addEventListener('click', newGame);
 $('undo').addEventListener('click', undo);
 $('lock').addEventListener('click', () => (lock ? unlockView() : lockView()));
@@ -645,6 +686,7 @@ $('lock-ccw').addEventListener('click', () => { if (lock) onTwist(faceByNormal(l
 $('lock-cw').addEventListener('click', () => { if (lock) onTwist(faceByNormal(lock.n).key, true); });
 window.addEventListener('keydown', (ev) => {
   if (ev.target.tagName === 'INPUT') return;
+  if (ev.key === 'Escape' && !$('sheet').hidden) { closeSheet(); return; }
   if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'z') { ev.preventDefault(); undo(); return; }
   if (!lock) return;
   const right = lockRight();
@@ -653,21 +695,40 @@ window.addEventListener('keydown', (ev) => {
 });
 
 // ---------------------------------------------------------------- resize + loop
+// Fit the cube (bounding radius ~2.9 with its labels) to the narrower field of view.
+function fitCamera() {
+  const vfov = THREE.MathUtils.degToRad(camera.fov);
+  const hfov = 2 * Math.atan(Math.tan(vfov / 2) * camera.aspect);
+  const fov = Math.min(vfov, hfov);
+  camDist = THREE.MathUtils.clamp(2.95 / Math.sin(fov / 2), 5.5, 14);
+  controls.minDistance = camDist * 0.75;
+  controls.maxDistance = camDist * 1.8;
+  if (!camAnim) camera.position.setLength(lock ? camDist : THREE.MathUtils.clamp(camera.position.length(), controls.minDistance, controls.maxDistance));
+}
 function resize() {
   const w = view.clientWidth, h = view.clientHeight;
+  if (!w || !h) return;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
+  fitCamera();
 }
 new ResizeObserver(resize).observe(view);
 resize();
+camera.position.setLength(camDist);
 
 const camDir = new THREE.Vector3();
 function loop(now) {
   if (camAnim) camAnim(now);
   else if (!lock) controls.update();
   camDir.copy(camera.position).normalize();
-  for (const sp of faceLabels) sp.visible = sp.userData.n.dot(camDir) > 0.05;
+  const facing = faceLabels.map((sp) => sp.userData.n.dot(camDir));
+  const cutoff = [...facing].sort((a, b) => b - a)[1]; // second-best dot product
+  faceLabels.forEach((sp, i) => {
+    const d = facing[i];
+    sp.visible = d >= cutoff && d > 0.2;
+    sp.material.opacity = THREE.MathUtils.clamp((d - 0.2) / 0.35, 0, 1);
+  });
   renderer.render(scene, camera);
   requestAnimationFrame(loop);
 }
@@ -694,7 +755,7 @@ $('install').addEventListener('click', async () => {
 });
 window.addEventListener('appinstalled', () => { $('install').hidden = true; });
 if (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone) {
-  $('install-help').hidden = true;
+  $('install-section').hidden = true;
 }
 
 // Debug/test hook (read-only use): window.__ctt.game, .camera, .stickerMeshes

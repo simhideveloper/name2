@@ -2,11 +2,11 @@
 // Strategy: precache the app shell on install; serve network-first with a
 // cache fallback, so a deploy is picked up on the next online load and the
 // game still opens with no connection.
-const CACHE = 'cube-tac-toe-v1';
+const CACHE = 'cube-tac-toe-v2';
 const SHELL = [
   './', './index.html', './style.css', './app.js', './game.js',
   './vendor/three.module.js', './vendor/OrbitControls.js',
-  './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png',
+  './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png',
 ];
 
 self.addEventListener('install', (event) => {

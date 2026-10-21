@@ -14,6 +14,14 @@ The whole thing is a static site: `index.html`, `style.css`, `app.js`
 (Three.js rendering + UI) and `game.js` (pure game logic, unit-tested).
 Three.js is vendored under `vendor/`, so there is no build step and no CDN.
 
+## Layout
+
+One fixed screen, designed for a phone first: a turn bar under the status bar
+(clear of the Dynamic Island), the cube in the middle, and a control dock above
+the home indicator that shows the map while you place and the layer controls
+while you twist. Names, rules and install help live behind the ⋯ button. On
+wide screens the bar and dock become a right-hand column.
+
 ## Rules
 
 - X goes first. Click a square on the cube, or on the unfolded map in the side panel.
@@ -29,8 +37,8 @@ Three.js is vendored under `vendor/`, so there is no build step and no CDN.
 The site is a Progressive Web App: it has a manifest, icons and a service
 worker, so it can be installed and played offline.
 
-- **Chrome or Edge (desktop and Android):** open the site, then click *Install app*
-  in the side panel or the install icon at the right end of the address bar.
+- **Chrome or Edge (desktop and Android):** open the site, tap the ⋯ button, then
+  *Install app*, or use the install icon at the right end of the address bar.
 - **Safari on Mac:** File → Add to Dock.
 - **Safari on iPhone or iPad:** Share → Add to Home Screen.
 

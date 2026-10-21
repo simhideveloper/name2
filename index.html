@@ -4,10 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Cube Tac-Toe</title>
-  <meta name="description" content="Tic-tac-toe on the shape of a Rubik's cube. Place a mark, then twist a face. Two players, one screen." />
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='6' fill='%232eb356'/%3E%3Cpath d='M9 9l14 14M23 9L9 23' stroke='%23ff3b3b' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
-  <meta name="theme-color" content="#0f1117" />
+  <meta name="description" content="Tic-tac-toe on the shape of a Rubik's cube. Place a mark, then twist a layer. Two players, one screen." />
+  <meta name="theme-color" content="#0a0c11" />
   <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
@@ -16,90 +16,129 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <main class="layout">
-    <section class="view" id="view" aria-label="3-D cube">
-      <div class="hud" id="hud">
-        <div class="hud-row">
-          <div class="hud-status" id="status"></div>
-          <button id="lock" type="button" class="lock-btn" aria-pressed="false" title="Lock the view face-on to the nearest face">Lock view</button>
-        </div>
-        <div class="hud-hint" id="hint"></div>
+  <div class="app" id="app">
+
+    <header class="topbar">
+      <button type="button" class="chip" data-player="X" id="chip-X" aria-label="Player X: open players">
+        <span class="chip-mark x">X</span>
+        <span class="chip-name" id="pname-X">Player 1</span>
+        <span class="chip-score" id="score-X">0</span>
+      </button>
+      <div class="turn" id="turn" aria-live="polite">
+        <div class="turn-title" id="status">Place a mark</div>
+        <div class="turn-sub" id="hint">Player 1 · tap any empty square</div>
+      </div>
+      <button type="button" class="chip" data-player="O" id="chip-O" aria-label="Player O: open players">
+        <span class="chip-score" id="score-O">0</span>
+        <span class="chip-name" id="pname-O">Player 2</span>
+        <span class="chip-mark o">O</span>
+      </button>
+    </header>
+
+    <main class="stage" id="view" aria-label="3-D cube">
+      <div class="stage-tools">
+        <button id="lock" type="button" class="icon-btn" aria-pressed="false" title="Lock the view face-on to the nearest face" aria-label="Lock view">
+          <svg class="ico ico-unlocked" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11V8a5 5 0 0 1 9.6-1.9" /><rect x="5" y="11" width="14" height="10" rx="2.5" /></svg>
+          <svg class="ico ico-locked" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11V8a5 5 0 0 1 10 0v3" /><rect x="5" y="11" width="14" height="10" rx="2.5" /></svg>
+        </button>
       </div>
       <div class="lockbar" id="lockbar" hidden>
         <button id="lock-ccw" type="button" class="turn-btn big" aria-label="Twist this face counter-clockwise">↺</button>
         <span class="lock-face-label">Twist <strong id="lock-face">Front</strong></span>
         <button id="lock-cw" type="button" class="turn-btn big" aria-label="Twist this face clockwise">↻</button>
       </div>
-      <div class="view-tip" id="view-tip">Drag to orbit · scroll or pinch to zoom · tap a square to play</div>
+      <div class="stage-tip" id="view-tip"></div>
       <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    </section>
+      <div class="winner" id="winner" hidden>
+        <div class="winner-card">
+          <div class="winner-eyebrow" id="winner-eyebrow">Game over</div>
+          <h2 class="winner-title" id="winner-title">Player 1 wins</h2>
+          <p class="winner-sub" id="winner-sub">Three in a row on the Front face.</p>
+          <div class="winner-actions">
+            <button id="again" type="button" class="btn btn-primary">Play again</button>
+            <button id="inspect" type="button" class="btn">Look at the cube</button>
+          </div>
+        </div>
+      </div>
+    </main>
 
-    <aside class="panel">
-      <header class="panel-head">
-        <h1>Cube Tac-Toe</h1>
-        <p>Tic-tac-toe on a Rubik's cube. Each turn: <strong>place a mark</strong>, then <strong>twist one layer</strong>.</p>
-      </header>
+    <footer class="dock">
+      <div class="dock-tabs" role="tablist" aria-label="Controls">
+        <button id="tab-map" type="button" role="tab" class="tab" aria-selected="true"><span class="tab-num">1</span> Map</button>
+        <button id="tab-twist" type="button" role="tab" class="tab" aria-selected="false"><span class="tab-num">2</span> Twist</button>
+      </div>
+      <div class="dock-panels">
+        <section class="dock-panel" id="panel-map" role="tabpanel" aria-label="All six faces">
+          <div class="net" id="net"></div>
+        </section>
+        <section class="dock-panel" id="panel-twist" role="tabpanel" aria-label="Twist a layer" hidden>
+          <div class="layer-grid" id="rotate-grid"></div>
+          <div class="layer-grid slices" id="slice-grid"></div>
+          <p class="panel-note" id="twist-note">Place a mark first.</p>
+        </section>
+      </div>
+      <div class="dock-actions">
+        <button id="undo" type="button" class="btn">
+          <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5" /><path d="M4 9h10a6 6 0 0 1 0 12h-3" /></svg>
+          Undo
+        </button>
+        <button id="new" type="button" class="btn">New game</button>
+        <button id="menu-btn" type="button" class="btn icon-only" aria-label="Players, rules and install" aria-haspopup="dialog">
+          <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" /></svg>
+        </button>
+      </div>
+    </footer>
 
-      <section class="players" id="players">
-        <label class="player" data-player="X">
-          <span class="badge badge-x">X</span>
-          <input id="name-X" type="text" maxlength="16" value="Player 1" aria-label="Player X name" />
-          <span class="score" id="score-X">0</span>
-        </label>
-        <label class="player" data-player="O">
-          <span class="badge badge-o">O</span>
-          <input id="name-O" type="text" maxlength="16" value="Player 2" aria-label="Player O name" />
-          <span class="score" id="score-O">0</span>
-        </label>
-      </section>
+    <div class="sheet" id="sheet" hidden>
+      <div class="sheet-backdrop" id="sheet-backdrop"></div>
+      <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+        <div class="sheet-grip" aria-hidden="true"></div>
+        <div class="sheet-head">
+          <h2 id="sheet-title">Cube Tac-Toe</h2>
+          <button id="sheet-close" type="button" class="icon-btn" aria-label="Close">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+          </button>
+        </div>
+        <div class="sheet-body">
+          <section class="sheet-section">
+            <h3>Players</h3>
+            <label class="name-row"><span class="chip-mark x">X</span><input id="name-X" type="text" maxlength="16" value="Player 1" aria-label="Player X name" autocomplete="off" /></label>
+            <label class="name-row"><span class="chip-mark o">O</span><input id="name-O" type="text" maxlength="16" value="Player 2" aria-label="Player O name" autocomplete="off" /></label>
+            <div class="score-line"><span id="score-line">Score 0 – 0</span><button id="reset-scores" type="button" class="link">Reset</button></div>
+          </section>
+          <section class="sheet-section" id="install-section">
+            <h3>Install as an app</h3>
+            <button id="install" type="button" class="btn btn-primary" hidden>Install app</button>
+            <ul class="plain">
+              <li><strong>iPhone or iPad:</strong> in Safari, tap Share, then <em>Add to Home Screen</em>.</li>
+              <li><strong>Mac:</strong> in Safari, File → <em>Add to Dock</em>.</li>
+              <li><strong>Chrome or Edge:</strong> use the install icon at the right end of the address bar.</li>
+            </ul>
+          </section>
+          <section class="sheet-section">
+            <h3>How to play</h3>
+            <ul class="plain">
+              <li>Two players share this screen. X goes first.</li>
+              <li>Each turn: place your mark on any empty square on any face, then twist one layer a quarter turn. Any face or any middle slice counts.</li>
+              <li>Marks ride along with their squares. Three in a row, column or diagonal on a single face wins; lines are checked after each placement and each twist.</li>
+              <li>A twist that completes only your opponent's line loses. Lines for both means the twister wins. A full cube with no line is a draw.</li>
+            </ul>
+          </section>
+          <section class="sheet-section">
+            <h3>Controls</h3>
+            <ul class="plain">
+              <li><strong>Tap</strong> a square on the cube or the map to place.</li>
+              <li><strong>Swipe</strong> across the cube with one finger to twist the layer under it. The middle row or column twists a middle slice.</li>
+              <li><strong>Drag the background</strong> or use <strong>two fingers</strong> to move only the view.</li>
+              <li><strong>Lock view</strong> snaps face-on to the nearest face. While locked, background drags and two-finger swipes turn the cube to the next face; the bar under the cube twists the face you see.</li>
+              <li>Faces are named by position (Top, Front, Right…); the labels stay put while layers turn.</li>
+            </ul>
+          </section>
+        </div>
+      </div>
+    </div>
 
-      <section class="steps" aria-label="Turn progress">
-        <div class="step" id="step-place"><span class="num">1</span> Place a mark</div>
-        <div class="step" id="step-rotate"><span class="num">2</span> Twist a layer</div>
-      </section>
-
-      <section class="rotate" id="rotate">
-        <h2>Twist a layer</h2>
-        <div class="rotate-grid" id="rotate-grid"></div>
-        <div class="rotate-grid slices" id="slice-grid"></div>
-      </section>
-
-      <section class="netwrap">
-        <h2>All six faces</h2>
-        <div class="net" id="net"></div>
-      </section>
-
-      <section class="actions">
-        <button id="undo" type="button" class="btn">Undo</button>
-        <button id="new" type="button" class="btn btn-primary">New game</button>
-        <button id="install" type="button" class="btn btn-install" hidden>Install app</button>
-      </section>
-
-      <details class="rules install-help" id="install-help">
-        <summary>Install as an app</summary>
-        <ul>
-          <li><strong>Chrome or Edge (desktop and Android):</strong> use the <em>Install app</em> button above, or the install icon at the right end of the address bar.</li>
-          <li><strong>Safari on Mac:</strong> File → Add to Dock.</li>
-          <li><strong>Safari on iPhone or iPad:</strong> Share → Add to Home Screen.</li>
-          <li>Once installed it opens in its own window and works offline.</li>
-        </ul>
-      </details>
-      <details class="rules">
-        <summary>Rules</summary>
-        <ul>
-          <li>Two players share this screen and alternate turns. X goes first.</li>
-          <li>On your turn, first place your mark on any empty square on any face (tap the cube or the unfolded map).</li>
-          <li>Then you <em>must</em> twist one layer a quarter turn, in either direction: any of the six faces, or one of the three middle slices. Marks ride along with their squares.</li>
-          <li>Faces are named by position (Top, Front, Right…); the floating labels stay put while the cube turns. A middle slice turns in the same sense as the face it is named after.</li>
-          <li>Swipe across the cube with one finger (or the mouse) to twist the layer under your finger in that direction; the middle row or column twists the middle slice. Drag the background, or use two fingers, to move only the view.</li>
-          <li><strong>Lock view</strong> snaps the camera face-on to the nearest face and centres it. While locked, dragging the background or swiping with two fingers turns the whole cube to the next face (arrow keys work too). The buttons under the cube twist the face you are looking at.</li>
-          <li>Three of your marks in a row, column or diagonal on any single face wins. Lines are checked after each placement and after each twist.</li>
-          <li>If your twist completes a line for your opponent but not for you, your opponent wins. If it completes lines for both, you win.</li>
-          <li>All 54 squares full with no line is a draw. Undo (or Ctrl/Cmd+Z) takes back the last action.</li>
-        </ul>
-      </details>
-    </aside>
-  </main>
+  </div>
   <script type="module" src="app.js"></script>
 </body>
 </html>
